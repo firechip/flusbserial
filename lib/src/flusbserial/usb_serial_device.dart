@@ -2,10 +2,12 @@ import 'dart:ffi';
 
 import 'package:ffi/ffi.dart' as ffi;
 import 'package:flusbserial/src/device_ids/ch34x_ids.dart';
+import 'package:flusbserial/src/device_ids/pl2303_ids.dart';
 import 'package:flusbserial/src/flusbserial/cdc_serial_device.dart';
 import 'package:flusbserial/src/flusbserial/ch34x_serial_device.dart';
 import 'package:flusbserial/src/flusbserial/cp210x_serial_device.dart';
 import 'package:flusbserial/src/device_ids/cp210x_ids.dart';
+import 'package:flusbserial/src/flusbserial/pl2303_serial_device.dart';
 import 'package:flusbserial/src/models/usb_configuration.dart';
 import 'package:flusbserial/src/models/usb_device.dart';
 import 'package:flusbserial/src/models/usb_endpoint.dart';
@@ -24,6 +26,7 @@ abstract class UsbSerialDevice implements UsbSerialInterface {
   static const String cdc = 'CDC';
   static const String cp210x = 'CP210x';
   static const String ch34x = 'CH34x';
+  static const String pl2303 = 'PL2303';
 
   static bool autoDetachKernelDriverEnabled = false;
 
@@ -55,10 +58,10 @@ abstract class UsbSerialDevice implements UsbSerialInterface {
   /// vendor and product IDs, or by the optional [type] hint.
   ///
   /// - If [type] is specified and matches a supported driver (e.g., [UsbSerialDevice.cp210x],
-  ///   [UsbSerialDevice.ch34x], [UsbSerialDevice.cdc]), that driver is used
+  ///   [UsbSerialDevice.pl2303], [UsbSerialDevice.ch34x], [UsbSerialDevice.cdc]), that driver is used
   ///   if the device is compatible.
   /// - If [type] is not specified or does not match, the method attempts to
-  ///   auto-detect support for known chipsets (currently CP210x and CH34x).
+  ///   auto-detect support for known chipsets (currently CP210x, PL2303 & CH34x).
   /// - If no specific driver is found, a [CdcSerialDevice] is created as the
   ///   default fallback.
   static UsbSerialDevice? createDevice(
@@ -72,6 +75,13 @@ abstract class UsbSerialDevice implements UsbSerialInterface {
           interfaceId = 0;
         }
         return Cp210XSerialDevice(device, interfaceId);
+      }
+    } else if (type == UsbSerialDevice.pl2303) {
+      if (Pl2303Ids.isDeviceSupported(device.vendorId, device.productId)) {
+        if (interfaceId == -1) {
+          interfaceId = 0;
+        }
+        return Pl2303SerialDevice(device, interfaceId);
       }
     } else if (type == UsbSerialDevice.ch34x) {
       if (Ch34xIds.isDeviceSupported(device.vendorId, device.productId)) {
@@ -89,6 +99,11 @@ abstract class UsbSerialDevice implements UsbSerialInterface {
         interfaceId = 0;
       }
       return Cp210XSerialDevice(device, interfaceId);
+    } else if (Pl2303Ids.isDeviceSupported(device.vendorId, device.productId)) {
+      if (interfaceId == -1) {
+        interfaceId = 0;
+      }
+      return Pl2303SerialDevice(device, interfaceId);
     } else if (Ch34xIds.isDeviceSupported(device.vendorId, device.productId)) {
       if (interfaceId == -1) {
         interfaceId = 0;
@@ -101,7 +116,9 @@ abstract class UsbSerialDevice implements UsbSerialInterface {
 
   /// Checks whether the given [UsbDevice] is supported.
   static bool isSupported(UsbDevice device) {
-    return CP210xIds.isDeviceSupported(device.vendorId, device.productId);
+    return CP210xIds.isDeviceSupported(device.vendorId, device.productId) ||
+        Pl2303Ids.isDeviceSupported(device.vendorId, device.productId) ||
+        Ch34xIds.isDeviceSupported(device.vendorId, device.productId);
   }
 
   /// Lists all USB devices currently connected to the system.
