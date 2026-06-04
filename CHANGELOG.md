@@ -1,3 +1,7 @@
+## 0.6.0
+
+* Adds support for PL2303 devices.
+
 ## 0.5.0
 
 * Enables support for macOS through CocoaPods.

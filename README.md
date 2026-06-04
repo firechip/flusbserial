@@ -15,6 +15,7 @@ It is inspired and based on code from [UsbSerial](https://github.com/felHR85/Usb
 - CP210x
 - CDC ACM
 - CH34x
+- PL2303
 
 ## Prerequisites
 

@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'flusbserial'
-  s.version          = '0.5.0'
+  s.version          = '0.6.0'
   s.summary          = 'A cross-platform USB serial plugin for Flutter desktop apps (Windows, Linux, macOS).'
   s.description      = <<-DESC
 A cross-platform USB serial plugin for Flutter desktop apps (Windows, Linux, macOS).
