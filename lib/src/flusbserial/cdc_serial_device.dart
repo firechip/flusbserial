@@ -13,7 +13,11 @@ import 'package:dart_libusb/dart_libusb.dart';
 class CdcSerialDevice extends UsbSerialDevice {
   final Libusb _libusb = libusb;
   UsbConfiguration? configuration;
-  static late final UsbInterface usbInterface;
+  // Per-instance and reassignable. It was `static late final`, which is both
+  // shared across every device and write-once — so the SECOND open() anywhere
+  // in the process (e.g. any reconnect) threw
+  // "LateInitializationError: Field 'usbInterface' has already been initialized".
+  late UsbInterface usbInterface;
   int cdcControl = 0;
   int initialBaudRate = 0;
   int controlLineState = 0;
@@ -50,11 +54,23 @@ class CdcSerialDevice extends UsbSerialDevice {
 
   @override
   Future<void> close() async {
-    await setControlCommand(setControlLineState, controlLineOff, null);
-    _libusb.libusb_release_interface(
-      deviceHandle,
-      configuration!.interfaces[usbInterfaceId].id,
-    );
+    // Best-effort: turning off the control line can fail if the device is
+    // gone, but that must NOT prevent releasing/closing the handle below —
+    // otherwise the interface stays claimed and the next open() reports
+    // "device in use". Also close the libusb handle (was leaked) and reset it.
+    try {
+      await setControlCommand(setControlLineState, controlLineOff, null);
+    } catch (_) {}
+    if (deviceHandle != nullptr) {
+      try {
+        _libusb.libusb_release_interface(
+          deviceHandle,
+          configuration!.interfaces[usbInterfaceId].id,
+        );
+      } catch (_) {}
+      _libusb.libusb_close(deviceHandle);
+      deviceHandle = nullptr;
+    }
   }
 
   @override
@@ -99,6 +115,7 @@ class CdcSerialDevice extends UsbSerialDevice {
           configuration!.interfaces[usbInterfaceId].id,
         ) !=
         libusb_error.LIBUSB_SUCCESS.value) {
+      _closeHandleQuietly();
       return false;
     }
 
@@ -120,6 +137,11 @@ class CdcSerialDevice extends UsbSerialDevice {
     }
 
     if (outEndpoint == null || inEndpoint == null) {
+      _libusb.libusb_release_interface(
+        deviceHandle,
+        configuration!.interfaces[usbInterfaceId].id,
+      );
+      _closeHandleQuietly();
       return false;
     }
 
@@ -127,6 +149,17 @@ class CdcSerialDevice extends UsbSerialDevice {
     await setControlCommand(setControlLineState, controlLineOn, null);
 
     return true;
+  }
+
+  // Close the libusb handle and reset [deviceHandle] to nullptr so the object
+  // is reusable after a failed open(). Without this reset, open()'s
+  // `assert(deviceHandle == nullptr)` fires on the next attempt
+  // ("Last device not closed").
+  void _closeHandleQuietly() {
+    if (deviceHandle != nullptr) {
+      _libusb.libusb_close(deviceHandle);
+      deviceHandle = nullptr;
+    }
   }
 
   Uint8List getInitialLineCoding() {
